@@ -1,0 +1,13 @@
+FROM node:20-alpine
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY apps/api/package.json apps/api/
+COPY packages/shared/package.json packages/shared/
+RUN npm install
+
+COPY packages/shared packages/shared
+COPY apps/api apps/api
+
+EXPOSE 3001
+CMD ["npm", "run", "dev", "--workspace=@gr-bi/api"]

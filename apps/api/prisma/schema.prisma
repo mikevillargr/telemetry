@@ -1,0 +1,304 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users        User[]
+  clients      Client[]
+  agentConfigs AgentConfig[]
+  auditLogs    AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  orgId          String   @map("org_id")
+  email          String   @unique
+  name           String   @default("")
+  hashedPassword String   @map("hashed_password")
+  role           UserRole @default(am)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  userClients  UserClient[]
+  auditLogs    AuditLog[]
+
+  @@index([orgId])
+  @@map("users")
+}
+
+model Client {
+  id         String   @id @default(uuid())
+  orgId      String   @map("org_id")
+  name       String
+  domains    String[] @default([])
+  industry   String   @default("")
+  goalsText  String?  @map("goals_text")
+  nuanceText String?  @map("nuance_text")
+  blacklist  String[] @default([])
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  organization         Organization          @relation(fields: [orgId], references: [id])
+  userClients          UserClient[]
+  connectorCredentials ConnectorCredential[]
+  dataPulls            DataPull[]
+  reports              Report[]
+  ragDocuments         RagDocument[]
+  dashboardAnalyses    DashboardAnalysis[]
+
+  @@index([orgId])
+  @@map("clients")
+}
+
+model UserClient {
+  userId   String @map("user_id")
+  clientId String @map("client_id")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@id([userId, clientId])
+  @@map("user_clients")
+}
+
+model ConnectorCredential {
+  id                   String        @id @default(uuid())
+  clientId             String        @map("client_id")
+  connectorType        ConnectorType @map("connector_type")
+  credentialsEncrypted String        @map("credentials_encrypted")
+  lastSynced           DateTime?     @map("last_synced")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("connector_credentials")
+}
+
+model AgentConfig {
+  id           String    @id @default(uuid())
+  orgId        String    @map("org_id")
+  agentType    AgentType @map("agent_type")
+  model        String
+  systemPrompt String    @default("") @map("system_prompt")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedBy    String?   @map("updated_by")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, agentType])
+  @@map("agent_configs")
+}
+
+model Report {
+  id             String    @id @default(uuid())
+  clientId       String    @map("client_id")
+  title          String
+  contentJson    Json      @default("{}") @map("content_json")
+  createdByAgent AgentType? @map("created_by_agent")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("reports")
+}
+
+model RagDocument {
+  id             String      @id @default(uuid())
+  clientId       String      @map("client_id")
+  content        String
+  embedding      Unsupported("vector(384)")?
+  contentType    ContentType @map("content_type")
+  authorAgent    AgentType?  @map("author_agent")
+  dateRangeStart DateTime?   @map("date_range_start")
+  dateRangeEnd   DateTime?   @map("date_range_end")
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("rag_documents")
+}
+
+model DataPull {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  connectorType  ConnectorType @map("connector_type")
+  status         PullStatus    @default(pending)
+  rowCount       Int?          @map("row_count")
+  error          String?
+  dateRangeStart DateTime      @map("date_range_start")
+  dateRangeEnd   DateTime      @map("date_range_end")
+  resultJson     Json?         @map("result_json")
+  startedAt      DateTime      @default(now()) @map("started_at")
+  completedAt    DateTime?     @map("completed_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([clientId, connectorType])
+  @@map("data_pulls")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  orgId      String   @map("org_id")
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  details    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+model TrendItem {
+  id         String        @id @default(uuid())
+  orgId      String        @map("org_id")
+  urlHash    String        @unique @map("url_hash")
+  url        String
+  title      String
+  summary    String        @default("")
+  category   TrendCategory
+  source     String        @default("")
+  publishedAt DateTime?    @map("published_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([orgId])
+  @@index([category])
+  @@index([createdAt])
+  @@map("trend_items")
+}
+
+model DashboardAnalysis {
+  id                   String   @id @default(uuid())
+  clientId             String   @map("client_id")
+  narrativeJson        Json     @map("narrative_json")
+  keyObservationsJson  Json     @map("key_observations_json")
+  recommendedActionsJson Json   @map("recommended_actions_json")
+  generatedAt          DateTime @default(now()) @map("generated_at")
+  dataPullId           String?  @map("data_pull_id")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([generatedAt])
+  @@map("dashboard_analyses")
+}
+
+model DigestSchedule {
+  id        String          @id @default(uuid())
+  orgId     String          @map("org_id")
+  frequency DigestFrequency @default(daily)
+  hour      Int             @default(8)
+  timezone  String          @default("America/New_York")
+  enabled   Boolean         @default(true)
+  lastRunAt DateTime?       @map("last_run_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@unique([orgId])
+  @@map("digest_schedules")
+}
+
+model ApiKey {
+  id           String   @id @default(uuid())
+  orgId        String   @map("org_id")
+  name         String   @default("Default")
+  keyHash      String   @unique @map("key_hash")
+  keyPrefix    String   @map("key_prefix")
+  scopeClientId String? @map("scope_client_id")
+  lastUsedAt   DateTime? @map("last_used_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([orgId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+enum TrendCategory {
+  seo
+  geo_ai_visibility
+  paid_media
+  research
+
+  @@map("trend_category")
+}
+
+enum DigestFrequency {
+  daily
+  weekly
+  monthly
+
+  @@map("digest_frequency")
+}
+
+enum UserRole {
+  admin
+  am
+  strategist
+  leadership
+  client
+
+  @@map("user_role")
+}
+
+enum AgentType {
+  data
+  visualization
+  strategy
+  trends
+
+  @@map("agent_type")
+}
+
+enum ConnectorType {
+  ga4
+  gsc
+  meta
+  semrush
+  brave
+  upload
+
+  @@map("connector_type")
+}
+
+enum PullStatus {
+  pending
+  running
+  success
+  error
+
+  @@map("pull_status")
+}
+
+enum ContentType {
+  data_pull
+  report
+  recommendation
+  strategy
+  onboarding_brief
+  trends_digest
+
+  @@map("content_type")
+}
