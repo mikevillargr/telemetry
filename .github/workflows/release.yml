@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0, 1.0.1, 1.1.0, 2.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Semver version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Error: Invalid Semver version. Format: X.Y.Z or X.Y.Z-prerelease"
+            exit 1
+          fi
+          echo "Valid Semver version: $VERSION"
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          # Get the last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Get commits since last tag
+          if [ -n "$LAST_TAG" ]; then
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --reverse)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          # Categorize commits by type
+          echo "### What's Changed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if echo "$COMMITS" | grep -q "feat:"; then
+            echo "#### ✨ New Features" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "feat:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "fix:"; then
+            echo "#### 🐛 Bug Fixes" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "fix:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "chore:"; then
+            echo "#### 🔧 Maintenance" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "chore:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "docs:"; then
+            echo "#### 📚 Documentation" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "docs:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "refactor:"; then
+            echo "#### ♻️ Refactoring" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "refactor:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "perf:"; then
+            echo "#### ⚡ Performance" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "perf:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "test:"; then
+            echo "#### ✅ Tests" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "test:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "style:"; then
+            echo "#### 💄 Style" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "style:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if echo "$COMMITS" | grep -q "ci:"; then
+            echo "#### 🤖 CI/CD" >> $GITHUB_STEP_SUMMARY
+            echo "$COMMITS" | grep "ci:" | sed 's/^/  /' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Save release notes to file
+          cat $GITHUB_STEP_SUMMARY > release_notes.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "### ✅ Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Prerelease:** ${{ inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
