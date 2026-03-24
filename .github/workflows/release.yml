@@ -3,15 +3,28 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (e.g., 1.0.0, 1.0.1, 1.1.0, 2.0.0)'
+      version_type:
+        description: 'Version increment type'
         required: true
-        type: string
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
       prerelease:
         description: 'Is this a prerelease?'
         required: false
         type: boolean
         default: false
+      prerelease_type:
+        description: 'Prerelease type (if prerelease)'
+        required: false
+        type: choice
+        options:
+          - alpha
+          - beta
+          - rc
+        default: beta
 
 permissions:
   contents: write
@@ -25,23 +38,64 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate Semver version
+      - name: Get latest version and increment
+        id: version
         run: |
-          VERSION="${{ inputs.version }}"
-          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-            echo "Error: Invalid Semver version. Format: X.Y.Z or X.Y.Z-prerelease"
-            exit 1
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          
+          # Remove 'v' prefix and parse version
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          # Increment based on version type
+          case "${{ inputs.version_type }}" in
+            "major")
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            "minor")
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            "patch")
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          # Build new version
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          # Add prerelease suffix if needed
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            # Get prerelease number
+            LAST_PRERELEASE=$(git tag -l "${NEW_VERSION}-${{ inputs.prerelease_type }}.*" | tail -1)
+            if [ -n "$LAST_PRERELEASE" ]; then
+              LAST_NUM=$(echo $LAST_PRERELEASE | grep -oP "${NEW_VERSION}-${{ inputs.prerelease_type }}\.\K\d+")
+              PRERELEASE_NUM=$((LAST_NUM + 1))
+            else
+              PRERELEASE_NUM=1
+            fi
+            NEW_VERSION="${NEW_VERSION}-${{ inputs.prerelease_type }}.${PRERELEASE_NUM}"
           fi
-          echo "Valid Semver version: $VERSION"
+          
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "previous_version=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "New version: ${NEW_VERSION}"
+          echo "Previous version: ${LATEST_TAG}"
 
       - name: Generate Release Notes
         id: release_notes
         run: |
           # Get the last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          LAST_TAG="${{ steps.version.outputs.previous_version }}"
           
           # Get commits since last tag
-          if [ -n "$LAST_TAG" ]; then
+          if [ -n "$LAST_TAG" ] && [ "$LAST_TAG" != "v0.0.0" ]; then
             COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s (%h)" --reverse)
           else
             COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
@@ -111,8 +165,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ inputs.version }}
-          name: Release v${{ inputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
           body_path: release_notes.md
           draft: false
           prerelease: ${{ inputs.prerelease }}
@@ -124,6 +178,7 @@ jobs:
         run: |
           echo "### ✅ Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Version:** ${{ steps.version.outputs.previous_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Prerelease:** ${{ inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
