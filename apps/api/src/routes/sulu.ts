@@ -11,7 +11,7 @@ router.use(authenticate);
 // POST /api/sulu/:clientId/query — query Sulu AI agent(s)
 router.post('/:clientId/query', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
+    const clientId = req.params.clientId as string;
     const query = req.body.query as string | undefined;
     const agentType = req.body.agentType as AgentType | undefined;
     const conversationHistory = req.body.conversationHistory as Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
@@ -42,13 +42,9 @@ router.post('/:clientId/query', requireClientAccess, async (req: Request, res: R
       orgId: req.user!.orgId,
       userId: req.user!.userId,
       action: 'sulu.query',
-      entityType: 'client',
+      entityType: 'sulu_query',
       entityId: clientId,
-      details: {
-        query,
-        agentTypes: result.agents.map((a) => a.agentType),
-        ragContextCount: result.agents.reduce((sum, a) => sum + a.ragContext.length, 0),
-      },
+      details: { agentType, queryLength: query.length },
     });
 
     sendSuccess(res, result);

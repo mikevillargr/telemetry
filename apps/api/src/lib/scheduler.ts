@@ -4,9 +4,9 @@ import { ingestAllFeeds } from './rss-ingest';
 import { generateDigest } from './digest';
 import { querySulu } from './agents';
 
-let rssJob: cron.ScheduledTask | null = null;
-let digestJob: cron.ScheduledTask | null = null;
-let analysisJob: cron.ScheduledTask | null = null;
+let rssJob: any = null;
+let digestJob: any = null;
+let analysisJob: any = null;
 
 /**
  * Start the scheduled jobs:

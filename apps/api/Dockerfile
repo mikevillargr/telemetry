@@ -12,13 +12,16 @@ RUN npm run build --workspace=@gr-bi/shared
 RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
 RUN npm run build --workspace=@gr-bi/api
 
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /app
-COPY --from=builder /app/node_modules ./node_modules
+COPY package.json package-lock.json* ./
+COPY apps/api/package.json apps/api/
+COPY packages/shared/package.json packages/shared/
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+RUN npm install --workspace=@gr-bi/shared --workspace=@gr-bi/api --production
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
 
 EXPOSE 3001
 CMD ["node", "apps/api/dist/index.js"]

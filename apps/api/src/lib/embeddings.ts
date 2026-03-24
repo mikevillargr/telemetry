@@ -1,20 +1,20 @@
-import { pipeline, Pipeline, Tensor } from '@xenova/transformers';
+import { pipeline, Tensor } from '@xenova/transformers';
 
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 const EMBEDDING_DIMENSIONS = 384;
 
-let extractor: Pipeline | null = null;
-let loadingPromise: Promise<Pipeline> | null = null;
+let extractor: any = null;
+let loadingPromise: Promise<any> | null = null;
 
 /**
  * Lazy-load the local embedding model. Cached after first call.
  * Model is ~30MB, downloaded once to ~/.cache/huggingface/
  */
-async function getExtractor(): Promise<Pipeline> {
+async function getExtractor(): Promise<any> {
   if (extractor) return extractor;
   if (loadingPromise) return loadingPromise;
 
-  loadingPromise = pipeline('feature-extraction', MODEL_NAME, {
+  loadingPromise = pipeline('feature-extraction', MODEL_NAME as any, {
     quantized: true, // use quantized ONNX model for speed
   });
 

@@ -15,7 +15,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 // POST /api/rag/:clientId/search — semantic search
 router.post('/:clientId/search', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
+    const clientId = req.params.clientId as string;
     const query = req.body.query as string | undefined;
     const limit = req.body.limit as number | undefined;
     const contentTypes = req.body.contentTypes as string[] | undefined;
@@ -46,7 +46,7 @@ router.post('/:clientId/search', requireClientAccess, async (req: Request, res: 
 // POST /api/rag/:clientId/ingest — ingest text content
 router.post('/:clientId/ingest', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
+    const clientId = req.params.clientId as string;
     const content = req.body.content as string | undefined;
     const contentType = req.body.contentType as string | undefined;
     const metadata = req.body.metadata as Record<string, unknown> | undefined;
@@ -77,11 +77,11 @@ router.post('/:clientId/ingest', requireClientAccess, async (req: Request, res: 
   }
 });
 
-// POST /api/rag/:clientId/upload — upload a file (CSV/TXT) and embed it
+// POST /api/rag/:clientId/upload — upload CSV/TXT file
 router.post('/:clientId/upload', requireClientAccess, upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
-    const file = (req as Request & { file?: Express.Multer.File }).file;
+    const clientId = req.params.clientId as string;
+    const file = req.file;
     const description = (req.body.description as string) || 'Uploaded file';
 
     if (!file) {
@@ -130,8 +130,8 @@ router.post('/:clientId/upload', requireClientAccess, upload.single('file'), asy
 // POST /api/rag/:clientId/embed-pull/:pullId — embed an existing data pull
 router.post('/:clientId/embed-pull/:pullId', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
-    const pullId = req.params.pullId;
+    const clientId = req.params.clientId as string;
+    const pullId = req.params.pullId as string;
 
     const pulls = await prisma.$queryRawUnsafe<Array<{
       id: string;
@@ -191,7 +191,7 @@ router.post('/:clientId/embed-pull/:pullId', requireClientAccess, async (req: Re
 // GET /api/rag/:clientId/stats — get document stats
 router.get('/:clientId/stats', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
+    const clientId = req.params.clientId as string;
     const stats = await getClientDocumentStats(clientId);
     sendSuccess(res, stats);
   } catch (error) {
@@ -203,7 +203,7 @@ router.get('/:clientId/stats', requireClientAccess, async (req: Request, res: Re
 // DELETE /api/rag/:clientId — delete all documents for a client
 router.delete('/:clientId', requireClientAccess, async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.params.clientId;
+    const clientId = req.params.clientId as string;
     const { contentType } = req.query;
     const deleted = await deleteClientDocuments(clientId, contentType as string | undefined);
 

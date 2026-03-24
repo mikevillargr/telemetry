@@ -14,7 +14,7 @@ router.get('/clients/:clientId/metrics', requireApiKeyClientAccess, async (req: 
 
     // Get latest data pulls by connector type
     const pulls = await prisma.dataPull.findMany({
-      where: { clientId, status: 'success' },
+      where: { clientId: clientId as string, status: 'success' },
       orderBy: { completedAt: 'desc' },
       distinct: ['connectorType'],
       select: {
@@ -28,7 +28,7 @@ router.get('/clients/:clientId/metrics', requireApiKeyClientAccess, async (req: 
 
     // Get client info
     const client = await prisma.client.findUnique({
-      where: { id: clientId },
+      where: { id: clientId as string },
       select: { id: true, name: true, domains: true, industry: true },
     });
 
@@ -38,7 +38,7 @@ router.get('/clients/:clientId/metrics', requireApiKeyClientAccess, async (req: 
     }
 
     // Get RAG doc count
-    const ragCount = await prisma.ragDocument.count({ where: { clientId } });
+    const ragCount = await prisma.ragDocument.count({ where: { clientId: clientId as string } });
 
     sendSuccess(res, {
       client,
@@ -63,7 +63,7 @@ router.get('/clients/:clientId/reports', requireApiKeyClientAccess, async (req: 
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
     const reports = await prisma.report.findMany({
-      where: { clientId },
+      where: { clientId: clientId as string },
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {
@@ -77,7 +77,7 @@ router.get('/clients/:clientId/reports', requireApiKeyClientAccess, async (req: 
 
     sendSuccess(res, {
       reports,
-      total: await prisma.report.count({ where: { clientId } }),
+      total: await prisma.report.count({ where: { clientId: clientId as string } }),
     });
   } catch (error) {
     console.error('V1 reports error:', error);

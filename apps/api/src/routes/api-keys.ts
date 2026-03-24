@@ -50,14 +50,14 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    await revokeApiKey(id, req.user!.orgId);
+    await revokeApiKey(id as string, req.user!.orgId);
 
     await writeAuditLog({
       orgId: req.user!.orgId,
       userId: req.user!.userId,
       action: 'api_key.revoke',
       entityType: 'api_key',
-      entityId: id,
+      entityId: id as string,
       details: {},
     });
 
