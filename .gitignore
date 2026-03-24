@@ -15,6 +15,7 @@ build/
 .env.local
 .env.production
 .env.*.local
+.env.docker
 apps/api/.env
 apps/web/.env.local
 
